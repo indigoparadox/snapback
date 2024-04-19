@@ -1,12 +1,36 @@
 #!/bin/bash
 
 SNAP_PROFILES_D="/etc/snapback.d"
-SNAP_PROFILE="$1"
+SNAP_PROFILE=""
 SNAP_DATE="`date '+%Y%m%d%H%M'`"
 SNAP_DRY=0
+SNAP_RARG=""
+
+while [ "$1" ]; do
+   case "$1" in
+      -n)
+			SNAP_DRY=1
+         ;;
+
+      -p)
+         shift
+			SNAP_PROFILES_D="$1"
+         ;;
+
+		-d)
+			SNAP_RARG="$SNAP_RARG --delete"
+			;;
+
+      *)
+			SNAP_PROFILE="$1"
+			;;
+   esac
+   shift
+done
 
 if [ -z "$SNAP_PROFILE" ]; then
 	echo "usage: $0 <profile>"
+	exit 1
 fi
 
 # Get profile-specific config from profile.ini.
@@ -62,7 +86,7 @@ fi
 
 echo "syncing $SNAP_RSYNC_SRC to $SNAP_RSYNC_DEST..."
 if [ $SNAP_DRY -eq 0 ]; then
-	/usr/bin/rsync -avz "$SNAP_RSYNC_SRC" "$SNAP_RSYNC_DEST" || \
+	/usr/bin/rsync -avz$SNAP_RARG "$SNAP_RSYNC_SRC" "$SNAP_RSYNC_DEST" || \
 	(snap_cleanup_abort; exit 1)
 fi
 
