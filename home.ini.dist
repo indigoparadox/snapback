@@ -1,0 +1,8 @@
+[home]
+vg=example-vg
+name=snap-home
+lv=home
+rsync_dest=rsync://example.com/example/vbox-vms
+rsync_src=/mnt/home-backup/vbox/VirtualBox VMs
+sz=1G
+mount=/mnt/home-backup
