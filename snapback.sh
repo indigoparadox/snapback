@@ -5,31 +5,56 @@ SNAP_PROFILE=""
 SNAP_DATE="`date '+%Y%m%d%H%M'`"
 SNAP_DRY=0
 SNAP_RARG=""
+SNAP_LARG=""
+SNAP_VERBOSE=0
+SNAP_HELP=0
 
 while [ "$1" ]; do
-   case "$1" in
-      -n)
-			SNAP_DRY=1
-         ;;
+	case "$1" in
+		-v)
+			SNAP_VERBOSE=1
+			SNAP_RARG="$SNAP_RARG -v"
+			SNAP_LARG="$SNAP_LARG -v"
+			;;
 
-      -p)
-         shift
+		-q)
+			SNAP_VERBOSE=0
+			SNAP_RARG="$SNAP_RARG -q"
+			SNAP_LARG="$SNAP_LARG -q"
+			;;
+
+		-n)
+			SNAP_DRY=1
+			;;
+
+		-p)
+			shift
 			SNAP_PROFILES_D="$1"
-         ;;
+			;;
 
 		-d)
 			SNAP_RARG="$SNAP_RARG --delete"
 			;;
 
-      *)
+		-h)
+			SNAP_HELP=1
+			;;
+
+		*)
 			SNAP_PROFILE="$1"
 			;;
-   esac
-   shift
+	esac
+	shift
 done
 
-if [ -z "$SNAP_PROFILE" ]; then
-	echo "usage: $0 <profile>"
+if [ $SNAP_HELP -eq 1 ] || [ -z "$SNAP_PROFILE" ]; then
+	echo "usage: $0 [-q|-v] [-n] [-d] [-p <profiles_dir>] <profile>"
+	echo
+	echo "-q	Supress non-error messages."
+	echo "-v	Show extra detail."
+	echo "-d	Delete sender-deleted files on receiving side."
+	echo "-n	Dry run."
+	echo "-p	Read profiles from <profiles_dir>."
 	exit 1
 fi
 
@@ -55,38 +80,50 @@ SNAP_MOUNT="`grep "^mount=" "$SNAP_PROFILES_D/$SNAP_PROFILE.ini" | \
 # Utility functions.
 
 snap_cleanup_abort() {
-	echo "cleaning up..."
+	if [ $SNAP_VERBOSE -ne 0 ]; then
+		echo "cleaning up..."
+	fi
 
 	if grep "\s$SNAP_MOUNT" /proc/mounts >/dev/null; then
-		echo "unmounting $SNAP_MOUNT..."
+		if [ $SNAP_VERBOSE -ne 0 ]; then
+			echo "unmounting $SNAP_MOUNT..."
+		fi
 		/bin/umount "$SNAP_MOUNT"
 	fi
 
 	if [ -b "/dev/$SNAP_VG/$SNAP_NAME" ]; then
-		echo "removing snapshot $SNAP_VG/$SNAP_NAME..."
-		/sbin/lvremove -f "/dev/$SNAP_VG/$SNAP_NAME"
+		if [ $SNAP_VERBOSE -ne 0 ]; then
+			echo "removing snapshot $SNAP_VG/$SNAP_NAME..."
+		fi
+		/sbin/lvremove$SNAP_LARG -f "/dev/$SNAP_VG/$SNAP_NAME"
 	fi
 
 }
 
 # Main procedure.
 
-echo "creating $SNAP_SZ snapshot $SNAP_VG/$SNAP_NAME from $SNAP_VG/$SNAP_LV..."
+if [ $SNAP_VERBOSE -ne 0 ]; then
+	echo "creating $SNAP_SZ snapshot $SNAP_VG/$SNAP_NAME from $SNAP_VG/$SNAP_LV..."
+fi
 if [ $SNAP_DRY -eq 0 ]; then
-	/sbin/lvcreate --size "$SNAP_SZ" --name "$SNAP_NAME" \
+	/sbin/lvcreate$SNAP_LARG --size "$SNAP_SZ" --name "$SNAP_NAME" \
 		--snapshot "/dev/$SNAP_VG/$SNAP_LV" || \
 	(snap_cleanup_abort; exit 1)
 fi
 
-echo "mounting $SNAP_VG/$SNAP_NAME to $SNAP_MOUNT..."
+if [ $SNAP_VERBOSE -ne 0 ]; then
+	echo "mounting $SNAP_VG/$SNAP_NAME to $SNAP_MOUNT..."
+fi
 if [ $SNAP_DRY -eq 0 ]; then
 	/bin/mount -o ro "/dev/$SNAP_VG/$SNAP_NAME" "$SNAP_MOUNT" || \
 	(snap_cleanup_abort; exit 1)
 fi
 
-echo "syncing $SNAP_RSYNC_SRC to $SNAP_RSYNC_DEST..."
+if [ $SNAP_VERBOSE -ne 0 ]; then
+	echo "syncing $SNAP_RSYNC_SRC to $SNAP_RSYNC_DEST..."
+fi
 if [ $SNAP_DRY -eq 0 ]; then
-	/usr/bin/rsync -avz$SNAP_RARG "$SNAP_RSYNC_SRC" "$SNAP_RSYNC_DEST" || \
+	/usr/bin/rsync -az$SNAP_RARG "$SNAP_RSYNC_SRC" "$SNAP_RSYNC_DEST" || \
 	(snap_cleanup_abort; exit 1)
 fi
 
